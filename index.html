@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="./scripts/index.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <button id="button">change state</button>
+    <button id="button2">change text</button>
+  </body>
+  <script>
+    const cleanup = (effectFn) => {
+      for (let i = 0; i < effectFn.deps.length; i++) {
+        // 删除谁 ？ --> 删除当前副作用函数
+        const deps = effectFn.deps[i];
+        deps.delete(effectFn);
+      }
+      effectFn.deps.length = 0;
+    };
+    const data = { foo: 1 };
+    const proxy = new Proxy(data, {
+      get(target, key) {
+        track(target, key);
+        return target[key];
+      },
+      set(target, key, value) {
+        target[key] = value;
+        trigger(target, key);
+        return true;
+      },
+    });
+
+    const bucket = new WeakMap();
+
+    let activityEffect;
+    // effect 栈，用于支持 effect 嵌套
+    const effectStack = [];
+
+    const effect = (fn, options = {}) => {
+      /**  effect 会在 effect 调用和 trigger(set) 调用时执行 **/
+      let effectFn = () => {
+        cleanup(effectFn);
+        activityEffect = effectFn;
+        effectStack.push(effectFn);
+        /** fn 的执行会触发 track 的执行 **/
+        fn();
+        effectStack.pop();
+        activityEffect = effectStack[effectStack.length - 1];
+      };
+      // 调度器 (scheduler) 挂载到 effect
+      effectFn.options = options;
+      effectFn.deps = [];
+      effectFn();
+    };
+
+    const track = (target, key) => {
+      if (!activityEffect) return;
+      let depsMap = bucket.get(target);
+      if (!depsMap) {
+        depsMap = new Map();
+        bucket.set(target, depsMap);
+      }
+      let deps = depsMap.get(key);
+      if (!deps) {
+        deps = new Set();
+        depsMap.set(key, deps);
+      }
+      deps.add(activityEffect);
+      activityEffect.deps.push(deps);
+    };
+
+    const trigger = (target, key) => {
+      const depsMap = bucket.get(target);
+      if (!depsMap) return;
+      const effects = depsMap.get(key);
+      const effectsRunner = new Set();
+      effects &&
+        effects.forEach((fn) => {
+          // 防止自增操作时的无线递归调用自身
+          // example： proxy.a = proxy.a + 1;
+          if (fn !== activityEffect) {
+            effectsRunner.add(fn);
+          }
+        });
+      effectsRunner.forEach((fn) => {
+        if (fn.options.scheduler) {
+          fn.options.scheduler(fn);
+        } else {
+          fn();
+        }
+      });
+    };
+
+    effect(
+      () => {
+        console.log(proxy.foo);
+      },
+      {
+        scheduler(fn) {
+          setTimeout(fn);
+        },
+      }
+    );
+
+    const button = document.querySelector("#button");
+    const button2 = document.querySelector("#button2");
+    button.addEventListener("click", () => {
+      proxy.foo++;
+      console.log("ended");
+    });
+
+    button2.addEventListener("click", () => {
+      proxy.text = Math.random().toString();
+    });
+  </script>
+</html>
