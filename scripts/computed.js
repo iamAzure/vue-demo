@@ -8,7 +8,7 @@ export const computed = (getter) => {
     // 添加调度器，在调度器中将 dirty 重置为 true
     scheduler() {
       dirty = true;
-      //trigger(obj, "value");
+      trigger(obj, "value");
     },
   });
   const obj = {
@@ -17,10 +17,10 @@ export const computed = (getter) => {
         value = effectFn();
         dirty = false;
       }
-      //track(obj, "value");
+      track(obj, "value");
       return value;
     },
   };
   return obj;
 };
-·
+// 访问 obj.value 时，会触发 track，effect 函数执行
