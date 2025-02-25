@@ -1,4 +1,5 @@
-//import {} from './scheduler.js';
+import { ITERATE_KEY } from './keys.js';
+import { TriggerType } from './types.js';
 
 const bucket = new WeakMap();
 // effect 栈，用于支持 effect 嵌套
@@ -23,28 +24,65 @@ export const track = (target, key) => {
   activityEffect.deps.push(deps);
 };
 
-export const trigger = (target, key) => {
+export const trigger = (target, key, type, newVal) => {
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const effects = depsMap.get(key);
   const effectsRunner = new Set();
   effects &&
-    effects.forEach((fn) => {
+    effects.forEach((effectFn) => {
       // 防止自增操作时的无限递归调用自身
       // example： proxy.a = proxy.a + 1;
       // 这个语句既会触发 get-track 又会触发 set-trigger
       // 首先读取 obj.foo 的值，这会触发 track 操作，将当前副作用函数收集到“桶”中，接着将其加 1 后再赋值给 obj.foo，此时会触发 trigger 操作，即把“桶”中的副作用函数取出并执行。
       // 但问题是该副作用函数正在执行中，还没有执行完毕，就要开始下一次的执行。
       // 这样会导致无限递归地调用自己，于是就产生了栈溢出。
-      if (fn !== activityEffect) {
-        effectsRunner.add(fn);
+      if (effectFn !== activityEffect) {
+        effectsRunner.add(effectFn);
       }
     });
-  effectsRunner.forEach((fn) => {
-    if (fn.options.scheduler) {
-      fn.options.scheduler(fn);
+
+
+
+  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+    const iterateEffects = depsMap.get(ITERATE_KEY);
+    iterateEffects && iterateEffects.forEach(effectFn => {
+      if (effectFn !== activityEffect) {
+        effectsRunner.add(effectFn);
+      }
+    })
+  }
+
+  // if (type === TriggerType.ADD && Array.isArray(target)) {
+  //   const lengthEffects = depsMap.get('length');
+  //   console.log('lengthEffects is', lengthEffects)
+  //   lengthEffects && lengthEffects.forEach(effectFn => {
+  //     if (effectFn !== activityEffect) {
+  //       effectsRunner.add(effectFn)
+  //     }
+  //   })
+  // }
+
+  // // 如果操作目标是数组，并且修改了数组的 length 属性
+  // if (Array.isArray(target) && key === 'length') {
+  //   // 对于索引大于或等于新的 length 值的元素
+  //   // 需要把所有相关的副作用函数去除并添加到
+  //   depsMap.forEach((effectFn, key) => {
+  //     if (key >= newVal) {
+  //       effects.forEach(effectFn => {
+  //         if (effectFn !== activityEffect) {
+  //           effectsRunner.add(effectFn)
+  //         }
+  //       })
+  //     }
+  //   })
+  // }
+
+  effectsRunner.forEach((effectFn) => {
+    if (effectFn.options.scheduler) {
+      effectFn.options.scheduler(effectFn);
     } else {
-      fn();
+      effectFn();
     }
   });
 };

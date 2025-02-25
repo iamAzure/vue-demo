@@ -16,79 +16,28 @@
     <button id="button2">add bar</button>
   </body>
   <script type="module">
-    import { track, trigger, effect } from "./scripts/effect.js";
+    import { reactive, readonly } from "./scripts/reactive.js";
+    import { effect } from "./scripts/effect.js";
     import { jobQueue, flushJob } from "./scripts/scheduler.js";
-    import { computed } from "./scripts/computed.js";
-    import { watch } from "./scripts/watch.js";
 
-    const fetData = () => {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          resolve({ msg: "success" });
-        }, 1000);
-      });
-    };
+    const arr = reactive([1, 2, 3]);
 
-    const data = { foo: 1, bar: 2 };
-    const proxy = new Proxy(data, {
-      get(target, key, receiver) {
-        track(target, key);
-        return target[key];
-      },
-      set(target, key, value) {
-        target[key] = value;
-        trigger(target, key);
-        return true;
-      },
-    });
-
-    watch(
-      proxy,
-      async (newValue, oldValue, onInvalidate) => {
-        let expired = false;
-        onInvalidate(() => {
-          console.log("expired");
-          expired = true;
-        });
-        const resData = await fetData();
-        if (!expired) {
-          console.log("fetch resData success", resData);
-        }
-      },
-      {
-        immediate: true,
+    effect(
+      () => {
+        console.log("print arr.length in effect:", arr.length);
       }
+      // {
+      //   scheduler(fn) {
+      //     // 这个操作的目的是减少渲染的次数
+      //     // 状态还是会通过 target[key] =  value 正常更新
+      //     // 副作用函数在只会在最后一次状态 update 时执行，省去了中间态
+      //     jobQueue.add(fn);
+      //     flushJob();
+      //   },
+      // }
     );
-    proxy.foo++;
-    // const sumRes = computed(() => proxy.foo + proxy.bar);
-
-    // effect(
-    //   () => {
-    //     console.log("sumRes===>", sumRes.value);
-    //     // const fooElement = document.querySelector('.foo');
-    //     // const barElement = document.querySelector('.bar');
-    //     // const sumResElement = document.querySelector('.sumRes');
-    //     // fooElement.innerHTML = 'foo:' + proxy.foo;
-    //     // barElement.innerHTML = 'bar:' + proxy.bar;
-    //     // sumResElement.innerHTML = 'foo + bar:' + sumRes.value;
-    //   },
-    //   {
-    //     scheduler(fn) {
-    //       // 这个操作的目的是减少渲染的次数
-    //       // 状态还是会通过 target[key] =  value 正常更新
-    //       // 副作用函数在只会在最后一次状态 update 时执行，省去了中间态
-    //       jobQueue.add(fn);
-    //       flushJob();
-    //     },
-    //   }
-    // );
-    const button = document.querySelector("#button");
-    const button2 = document.querySelector("#button2");
-    button.addEventListener("click", () => {
-      proxy.foo++;
-    });
-    button2.addEventListener("click", () => {
-      proxy.bar++;
-    });
+    delete arr[1];
+    arr.length = 10;
+    console.log('arr is', arr)
   </script>
 </html>

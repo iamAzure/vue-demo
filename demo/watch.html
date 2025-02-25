@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <button id="button">add foo</button>
+    <button id="button2">add bar</button>
+  </body>
+  <script type="module">
+    import { reactive } from "../scripts/reactive.js";
+    import { watch } from "../scripts/watch.js";
+
+    export const fetchData = () => {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          resolve({ msg: "success" });
+        }, 1000);
+      });
+    };
+    
+    watch(
+      data,
+      async (newValue, oldValue, onInvalidate) => {
+        let expired = false;
+        onInvalidate(() => {
+          console.log("expired");
+          expired = true;
+        });
+        const resData = await fetData();
+        if (!expired) {
+          console.log("fetch resData success", resData);
+        }
+      },
+      {
+        immediate: true,
+      }
+    );
+    
+    data.foo++;
+    const button = document.querySelector("#button");
+    const button2 = document.querySelector("#button2");
+    button.addEventListener("click", () => {
+      data.zoo++;
+    });
+    button2.addEventListener("click", () => {
+      proxy.bar++;
+    });
+  </script>
+</html>
