@@ -3,3 +3,7 @@ export const TriggerType = {
     ADD: 'ADD',
     DELETE: 'DELETE'
 }
+
+export const ReactiveFlags = {
+    RAW : '__v_raw',
+}

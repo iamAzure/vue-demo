@@ -1,6 +1,6 @@
-import { ITERATE_KEY } from './keys.js';
+import { ITERATE_KEY, MAP_KEY_ITERATE_KEY } from './keys.js';
 import { TriggerType } from './types.js';
-
+import { shouldTrack } from './reactive.js';
 const bucket = new WeakMap();
 // effect 栈，用于支持 effect 嵌套
 const effectStack = [];
@@ -8,7 +8,7 @@ const effectStack = [];
 let activityEffect;
 
 export const track = (target, key) => {
-  if (!activityEffect) return;
+  if (!activityEffect || !shouldTrack) return;
   let depsMap = bucket.get(target);
   if (!depsMap) {
     depsMap = new Map();
@@ -27,6 +27,7 @@ export const track = (target, key) => {
 export const trigger = (target, key, type, newVal) => {
   const depsMap = bucket.get(target);
   if (!depsMap) return;
+  const isMapTarget = Object.prototype.toString.call(target) === '[object Map]';
   const effects = depsMap.get(key);
   const effectsRunner = new Set();
   effects &&
@@ -44,7 +45,7 @@ export const trigger = (target, key, type, newVal) => {
 
 
 
-  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+  if (type === TriggerType.ADD || type === TriggerType.DELETE || (type === TriggerType.Set && isMapTarget)) {
     const iterateEffects = depsMap.get(ITERATE_KEY);
     iterateEffects && iterateEffects.forEach(effectFn => {
       if (effectFn !== activityEffect) {
@@ -53,30 +54,38 @@ export const trigger = (target, key, type, newVal) => {
     })
   }
 
-  // if (type === TriggerType.ADD && Array.isArray(target)) {
-  //   const lengthEffects = depsMap.get('length');
-  //   console.log('lengthEffects is', lengthEffects)
-  //   lengthEffects && lengthEffects.forEach(effectFn => {
-  //     if (effectFn !== activityEffect) {
-  //       effectsRunner.add(effectFn)
-  //     }
-  //   })
-  // }
+  if ((type === TriggerType.ADD || type === TriggerType.DELETE) && isMapTarget) {
+    const iterateEffects = depsMap.get(MAP_KEY_ITERATE_KEY);
+    iterateEffects && iterateEffects.forEach(effectFn => {
+      if (effectFn !== activityEffect) {
+        effectsRunner.add(effectFn);
+      }
+    })
+  }
 
-  // // 如果操作目标是数组，并且修改了数组的 length 属性
-  // if (Array.isArray(target) && key === 'length') {
-  //   // 对于索引大于或等于新的 length 值的元素
-  //   // 需要把所有相关的副作用函数去除并添加到
-  //   depsMap.forEach((effectFn, key) => {
-  //     if (key >= newVal) {
-  //       effects.forEach(effectFn => {
-  //         if (effectFn !== activityEffect) {
-  //           effectsRunner.add(effectFn)
-  //         }
-  //       })
-  //     }
-  //   })
-  // }
+  if (type === TriggerType.ADD && Array.isArray(target)) {
+    const lengthEffects = depsMap.get('length');
+    lengthEffects && lengthEffects.forEach(effectFn => {
+      if (effectFn !== activityEffect) {
+        effectsRunner.add(effectFn)
+      }
+    })
+  }
+
+  // 如果操作目标是数组，并且修改了数组的 length 属性
+  if (Array.isArray(target) && key === 'length') {
+    // 对于索引大于或等于新的 length 值的元素
+    // 需要把所有相关的副作用函数去除并添加到
+    depsMap.forEach((effectFn, key) => {
+      if (key >= newVal) {
+        effects.forEach(effectFn => {
+          if (effectFn !== activityEffect) {
+            effectsRunner.add(effectFn)
+          }
+        })
+      }
+    })
+  }
 
   effectsRunner.forEach((effectFn) => {
     if (effectFn.options.scheduler) {

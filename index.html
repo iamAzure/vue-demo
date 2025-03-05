@@ -19,25 +19,20 @@
     import { reactive, readonly } from "./scripts/reactive.js";
     import { effect } from "./scripts/effect.js";
     import { jobQueue, flushJob } from "./scripts/scheduler.js";
-
-    const arr = reactive([1, 2, 3]);
-
-    effect(
-      () => {
-        console.log("print arr.length in effect:", arr.length);
-      }
-      // {
-      //   scheduler(fn) {
-      //     // 这个操作的目的是减少渲染的次数
-      //     // 状态还是会通过 target[key] =  value 正常更新
-      //     // 副作用函数在只会在最后一次状态 update 时执行，省去了中间态
-      //     jobQueue.add(fn);
-      //     flushJob();
-      //   },
-      // }
+    const p = reactive(
+      new Map([
+        ["key1", "value1"],
+        ["key2", "value2"],
+      ])
     );
-    delete arr[1];
-    arr.length = 10;
-    console.log('arr is', arr)
+
+    effect(() => {
+      for (const value of p.keys()) {
+        console.log('====>',value);
+      }
+    });
+
+    p.set("key2", "value3"); // 不会触发响应
+    p.set("key3", "value3"); // 能够触发响应
   </script>
 </html>
